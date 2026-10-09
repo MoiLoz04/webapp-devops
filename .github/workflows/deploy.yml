@@ -26,7 +26,7 @@ jobs:
         run: npx jest --listTests
 
       - name: Run all tests
-        run: npx jest --verbose --coverage --coverageThreshold='{"global":{"lines":50}}'
+        run: npx jest --verbose --coverage --coverageThreshold='{"global":{"lines":70}}'
 
   # ── JOB 2: Build y Push a Docker Hub ─────────────
   build-and-push:
