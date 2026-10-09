@@ -17,8 +17,7 @@ RUN npm install --omit=dev
 COPY . .
 
 # 7. Exponer el puerto 80
-EXPOSE 8080
-EXPOSE 6061     
+EXPOSE 8080   
 
 # 8. Ejecutar tu archivo principal app.js
 CMD ["node", "app.js"]

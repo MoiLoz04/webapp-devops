@@ -3,7 +3,9 @@ name: CI/CD Pipeline — webapp-devops
 on:
   push:
     branches: ["main"]
-
+  pull_request:
+    branches: ["main"]
+    
 jobs:
 
   # ── JOB 1: Pruebas unitarias ──────────────────────
@@ -31,6 +33,7 @@ jobs:
   # ── JOB 2: Build y Push a Docker Hub ─────────────
   build-and-push:
     needs: test
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

@@ -7,7 +7,7 @@ app.use('/api', require('./src/routes'));
 beforeEach(async () => {
   await request(app).delete('/api/vaciar');
 });
-
+  
 // ═══════════════════════════════════════════
 // ENDPOINT 1 — POST /api/productos
 // ═══════════════════════════════════════════
