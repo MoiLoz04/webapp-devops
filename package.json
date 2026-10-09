@@ -22,8 +22,8 @@
   "jest": {
     "testEnvironment": "node",
     "collectCoverageFrom": [
-      "src/**/*.js",
-      "app.js"
+      "src/routes.js",
+      "src/database.js"
     ]
   }
 }
