@@ -20,6 +20,10 @@
     "supertest": "^7.3.0"
   },
   "jest": {
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "app.js"
+    ]
   }
 }
