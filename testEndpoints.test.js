@@ -180,7 +180,7 @@ test('EP8-3: GET /api/health - Timestamp debe ser una fecha valida', async () =>
   const isValidDate = !isNaN(Date.parse(res.body.data.timestamp));
   expect(isValidDate).toBe(true);
 });
-
+//ok
 // ═══════════════════════════════════════════
 // ENDPOINT 9 — GET /api/backup
 // ═══════════════════════════════════════════
