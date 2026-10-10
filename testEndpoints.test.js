@@ -167,7 +167,7 @@ test('EP7-3: DELETE /api/categorias/:id - Categoria no debe existir tras elimina
 test('EP8-1: GET /api/health - Debe retornar 200 y estado OK', async () => {
   const res = await request(app).get('/api/health');
   expect(res.statusCode).toBe(200);
-  expect(res.body.data.estado).toBe('OKay');
+  expect(res.body.data.estado).toBe('OK');
 });
 
 test('EP8-2: GET /api/health - Respuesta debe tener timestamp', async () => {
