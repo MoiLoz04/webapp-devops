@@ -62,7 +62,7 @@ router.delete('/categorias/:id', (req, res) => {
 
 // 8. GET /health
 router.get('/health', (req, res) => {
-  resp(res, { estado: 'OK', timestamp: new Date().toISOString() });
+  resp(res, { estado: 'OK2', timestamp: new Date().toISOString() });
 });
 
 // 9. GET /backup — ¡MODIFICADO CON TAMAÑO EN BYTES!
