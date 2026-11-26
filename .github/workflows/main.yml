@@ -6,7 +6,7 @@ on:
     branches:
       - main
       - parcial-2
-
+      - prueba-fallo-cicd
   pull_request:
     branches:
       - main
