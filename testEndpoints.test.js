@@ -813,3 +813,8 @@ describe('Modulo 7 - Comunicacion TCP', () => {
     expect(res.data.stock).toBe(5);
   });
 });
+describe('Validacion del bloqueo CI/CD', () => {
+  test('Fallo controlado para verificar el bloqueo del despliegue', () => {
+    expect(true).toBe(false);
+  });
+});
