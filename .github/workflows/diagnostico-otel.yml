@@ -19,6 +19,14 @@ jobs:
         shell: bash
         run: |
           set -eu
+if [[ "$OPENOBSERVE_AUTH" == *:* ]]; then
+  echo "Formato de autenticacion: usuario:token"
+else
+  echo "Formato de autenticacion: otro"
+fi
+
+echo "Longitud de credencial: ${#OPENOBSERVE_AUTH}"
+echo "Longitud de URL: ${#OPENOBSERVE_URL}"
 
           BASE="${OPENOBSERVE_URL%/}"
           BASE="${BASE%/_json}"
