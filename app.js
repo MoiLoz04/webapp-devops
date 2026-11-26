@@ -1,9 +1,17 @@
 
 require('dotenv').config();
 
+if (process.env.OTEL_ENABLED === 'true') {
+  require('./src/observability/telemetry');
+}
+
 const express = require('express');
 const path = require('path');
 const app = express();
+
+if (process.env.OTEL_ENABLED === 'true') {
+  app.use(require('./src/observability/http-monitor'));
+}
 
 app.use(express.json({ limit: '50mb' }));
 

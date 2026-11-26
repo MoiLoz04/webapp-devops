@@ -1,336 +1,336 @@
 
-name: CI/CD Pipeline - WebApp DevOps
+  name: CI/CD Pipeline - WebApp DevOps
 
-on:
-  push:
-    branches:
-      - main
-      - parcial-2
+  on:
+    push:
+      branches:
+        - main
+        - parcial-2
 
-  pull_request:
-    branches:
-      - main
+    pull_request:
+      branches:
+        - main
 
-  workflow_dispatch:
+    workflow_dispatch:
 
-permissions:
-  contents: read
+  permissions:
+    contents: read
 
-concurrency:
-  group: webapp-${{ github.ref }}
-  cancel-in-progress: false
+  concurrency:
+    group: webapp-${{ github.ref }}
+    cancel-in-progress: false
 
-jobs:
+  jobs:
 
-  # ==========================================
-  # JOB 1 - Pruebas Jest y Playwright
-  # ==========================================
+    # ==========================================
+    # JOB 1 - Pruebas Jest y Playwright
+    # ==========================================
 
-  test:
-    name: Pruebas automatizadas
-    runs-on: ubuntu-latest
+    test:
+      name: Pruebas automatizadas
+      runs-on: ubuntu-latest
 
-    env:
-      SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
-      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.TEST_SUPABASE_PUBLISHABLE_KEY }}
-      SUPABASE_SECRET_KEY: ${{ secrets.TEST_SUPABASE_SECRET_KEY }}
-      TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
-      TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
-      PORT: 8080
-      TCP_PORT: 6061
-      TCP_HOST: 127.0.0.1
-      ALLOW_DATABASE_RESET: "false"
+      env:
+        SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+        SUPABASE_PUBLISHABLE_KEY: ${{ secrets.TEST_SUPABASE_PUBLISHABLE_KEY }}
+        SUPABASE_SECRET_KEY: ${{ secrets.TEST_SUPABASE_SECRET_KEY }}
+        TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
+        TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
+        PORT: 8080
+        TCP_PORT: 6061
+        TCP_HOST: 127.0.0.1
+        ALLOW_DATABASE_RESET: "false"
 
-    steps:
-      - name: Descargar repositorio
-        uses: actions/checkout@v4
+      steps:
+        - name: Descargar repositorio
+          uses: actions/checkout@v4
 
-      - name: Configurar Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
+        - name: Configurar Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: 24
+            cache: npm
 
-      - name: Instalar dependencias
-        run: npm ci
+        - name: Instalar dependencias
+          run: npm ci
 
-      - name: Verificar dependencias de produccion
-        run: npm audit --omit=dev
+        - name: Verificar dependencias de produccion
+          run: npm audit --omit=dev
 
-      - name: Listar pruebas Jest
-        run: npx jest --listTests
+        - name: Listar pruebas Jest
+          run: npx jest --listTests
 
-      - name: Ejecutar Jest y cobertura
-        run: >
-          npm run test:ci --
-          --coverageThreshold='{"global":{"lines":70}}'
+        - name: Ejecutar Jest y cobertura
+          run: >
+            npm run test:ci --
+            --coverageThreshold='{"global":{"lines":70}}'
 
-      - name: Guardar reporte de cobertura
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: reporte-cobertura-jest
-          path: coverage/
-          retention-days: 30
+        - name: Guardar reporte de cobertura
+          if: always()
+          uses: actions/upload-artifact@v4
+          with:
+            name: reporte-cobertura-jest
+            path: coverage/
+            retention-days: 30
 
-      - name: Instalar Chromium
-        run: npx playwright install --with-deps chromium
+        - name: Instalar Chromium
+          run: npx playwright install --with-deps chromium
 
-      - name: Ejecutar pruebas Playwright
-        run: npm run test:e2e -- --workers=1
+        - name: Ejecutar pruebas Playwright
+          run: npm run test:e2e -- --workers=1
 
-      - name: Guardar reporte Playwright
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: reporte-playwright
-          path: playwright-report/
-          retention-days: 30
+        - name: Guardar reporte Playwright
+          if: always()
+          uses: actions/upload-artifact@v4
+          with:
+            name: reporte-playwright
+            path: playwright-report/
+            retention-days: 30
 
-      - name: Guardar evidencias Playwright
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: evidencias-playwright
-          path: test-results/
-          retention-days: 30
+        - name: Guardar evidencias Playwright
+          if: always()
+          uses: actions/upload-artifact@v4
+          with:
+            name: evidencias-playwright
+            path: test-results/
+            retention-days: 30
 
-  # ==========================================
-  # JOB 2 - Construccion y publicacion Docker
-  # ==========================================
+    # ==========================================
+    # JOB 2 - Construccion y publicacion Docker
+    # ==========================================
 
-  build-and-push:
-    name: Construir y publicar Docker
-    needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    build-and-push:
+      name: Construir y publicar Docker
+      needs: test
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      runs-on: ubuntu-latest
 
-    steps:
-      - name: Descargar repositorio
-        uses: actions/checkout@v4
+      steps:
+        - name: Descargar repositorio
+          uses: actions/checkout@v4
 
-      - name: Iniciar sesion en Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        - name: Iniciar sesion en Docker Hub
+          uses: docker/login-action@v3
+          with:
+            username: ${{ secrets.DOCKERHUB_USERNAME }}
+            password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Configurar Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        - name: Configurar Docker Buildx
+          uses: docker/setup-buildx-action@v3
 
-      - name: Construir y publicar imagen
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          platforms: linux/amd64
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/webapp:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/webapp:${{ github.sha }}
+        - name: Construir y publicar imagen
+          uses: docker/build-push-action@v6
+          with:
+            context: .
+            file: ./Dockerfile
+            push: true
+            platforms: linux/amd64
+            tags: |
+              ${{ secrets.DOCKERHUB_USERNAME }}/webapp:latest
+              ${{ secrets.DOCKERHUB_USERNAME }}/webapp:${{ github.sha }}
 
-  # ==========================================
-  # JOB 3 - Despliegue AWS EC2
-  # ==========================================
+    # ==========================================
+    # JOB 3 - Despliegue AWS EC2
+    # ==========================================
 
-  deploy-ec2:
-    name: Desplegar en AWS EC2
-    needs: build-and-push
-    if: github.ref == 'refs/heads/main' && vars.ENABLE_EC2_DEPLOY == 'true'
-    runs-on: ubuntu-latest
+    deploy-ec2:
+      name: Desplegar en AWS EC2
+      needs: build-and-push
+      if: github.ref == 'refs/heads/main' && vars.ENABLE_EC2_DEPLOY == 'true'
+      runs-on: ubuntu-latest
 
-    steps:
-      - name: Desplegar mediante SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          fingerprint: ${{ secrets.EC2_SSH_FINGERPRINT }}
-          script: |
+      steps:
+        - name: Desplegar mediante SSH
+          uses: appleboy/ssh-action@v1.0.3
+          with:
+            host: ${{ secrets.EC2_HOST }}
+            username: ${{ secrets.EC2_USERNAME }}
+            key: ${{ secrets.EC2_SSH_KEY }}
+            fingerprint: ${{ secrets.EC2_SSH_FINGERPRINT }}
+            script: |
+              set -eu
+
+              IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/webapp:${{ github.sha }}"
+
+              test -r "$HOME/webapp-devops/.env"
+
+              docker pull "$IMAGE"
+
+              docker stop webapp-container || true
+              docker rm webapp-container || true
+
+              docker run -d \
+                --name webapp-container \
+                --restart unless-stopped \
+                --env-file "$HOME/webapp-devops/.env" \
+                -e PORT=8080 \
+                -e TCP_PORT=6061 \
+                -e TCP_HOST=0.0.0.0 \
+                -e ALLOW_DATABASE_RESET=false \
+                -p 80:8080 \
+                -p 127.0.0.1:6061:6061 \
+                "$IMAGE"
+
+              for i in $(seq 1 15); do
+                if curl -fsS http://localhost/api/health; then
+                  echo "Despliegue correcto"
+                  docker ps
+                  exit 0
+                fi
+                sleep 4
+              done
+
+              docker logs --tail 50 webapp-container
+              exit 1
+
+    # ==========================================
+    # JOB 4 - Observabilidad OpenObserve
+    # ==========================================
+
+    observability:
+      name: Registrar resultados en OpenObserve
+
+      needs:
+        - test
+        - build-and-push
+        - deploy-ec2
+
+      if: ${{ always() && !cancelled() && github.event_name != 'pull_request' }}
+
+      runs-on: ubuntu-latest
+
+      env:
+        OPENOBSERVE_URL: ${{ secrets.OPENOBSERVE_URL }}
+        OPENOBSERVE_AUTH: ${{ secrets.OPENOBSERVE_AUTH }}
+
+        TEST_RESULT: ${{ needs.test.result }}
+        BUILD_RESULT: ${{ needs.build-and-push.result }}
+        DEPLOY_RESULT: ${{ needs.deploy-ec2.result }}
+
+      steps:
+
+        - name: Generar registro del pipeline
+          shell: bash
+          run: |
             set -eu
 
-            IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/webapp:${{ github.sha }}"
-
-            test -r "$HOME/webapp-devops/.env"
-
-            docker pull "$IMAGE"
-
-            docker stop webapp-container || true
-            docker rm webapp-container || true
-
-            docker run -d \
-              --name webapp-container \
-              --restart unless-stopped \
-              --env-file "$HOME/webapp-devops/.env" \
-              -e PORT=8080 \
-              -e TCP_PORT=6061 \
-              -e TCP_HOST=0.0.0.0 \
-              -e ALLOW_DATABASE_RESET=false \
-              -p 80:8080 \
-              -p 127.0.0.1:6061:6061 \
-              "$IMAGE"
-
-            for i in $(seq 1 15); do
-              if curl -fsS http://localhost/api/health; then
-                echo "Despliegue correcto"
-                docker ps
-                exit 0
-              fi
-              sleep 4
-            done
-
-            docker logs --tail 50 webapp-container
-            exit 1
-
-  # ==========================================
-  # JOB 4 - Observabilidad OpenObserve
-  # ==========================================
-
-  observability:
-    name: Registrar resultados en OpenObserve
-
-    needs:
-      - test
-      - build-and-push
-      - deploy-ec2
-
-    if: ${{ always() && !cancelled() && github.event_name != 'pull_request' }}
-
-    runs-on: ubuntu-latest
-
-    env:
-      OPENOBSERVE_URL: ${{ secrets.OPENOBSERVE_URL }}
-      OPENOBSERVE_AUTH: ${{ secrets.OPENOBSERVE_AUTH }}
-
-      TEST_RESULT: ${{ needs.test.result }}
-      BUILD_RESULT: ${{ needs.build-and-push.result }}
-      DEPLOY_RESULT: ${{ needs.deploy-ec2.result }}
-
-    steps:
-
-      - name: Generar registro del pipeline
-        shell: bash
-        run: |
-          set -eu
-
-          STATUS="success"
-          LEVEL="info"
-          MESSAGE="Pipeline ejecutado correctamente"
-
-          if [[ "$TEST_RESULT" == "failure" ]]; then
-            STATUS="failure"
-            LEVEL="error"
-            MESSAGE="Pruebas fallidas. Construccion y despliegue bloqueados."
-
-          elif [[ "$BUILD_RESULT" == "failure" ]]; then
-            STATUS="failure"
-            LEVEL="error"
-            MESSAGE="Error al construir o publicar la imagen Docker."
-
-          elif [[ "$DEPLOY_RESULT" == "failure" ]]; then
-            STATUS="failure"
-            LEVEL="error"
-            MESSAGE="Error durante el despliegue en AWS EC2."
-
-          elif [[ "$TEST_RESULT" == "cancelled" || \
-                  "$BUILD_RESULT" == "cancelled" || \
-                  "$DEPLOY_RESULT" == "cancelled" ]]; then
-            STATUS="cancelled"
-            LEVEL="warn"
-            MESSAGE="Una etapa del pipeline fue cancelada."
-
-          elif [[ "$DEPLOY_RESULT" == "skipped" ]]; then
-            STATUS="partial"
+            STATUS="success"
             LEVEL="info"
-            MESSAGE="Pipeline ejecutado sin despliegue en AWS EC2."
+            MESSAGE="Pipeline ejecutado correctamente"
 
-          else
-            MESSAGE="Pruebas, Docker y despliegue AWS completados correctamente."
-          fi
+            if [[ "$TEST_RESULT" == "failure" ]]; then
+              STATUS="failure"
+              LEVEL="error"
+              MESSAGE="Pruebas fallidas. Construccion y despliegue bloqueados."
 
-          jq -n \
-            --arg timestamp "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-            --arg application "webapp-devops" \
-            --arg environment "ci-cd" \
-            --arg level "$LEVEL" \
-            --arg status "$STATUS" \
-            --arg message "$MESSAGE" \
-            --arg repository "$GITHUB_REPOSITORY" \
-            --arg branch "$GITHUB_REF_NAME" \
-            --arg commit "$GITHUB_SHA" \
-            --arg actor "$GITHUB_ACTOR" \
-            --arg event "$GITHUB_EVENT_NAME" \
-            --arg run_id "$GITHUB_RUN_ID" \
-            --arg run_number "$GITHUB_RUN_NUMBER" \
-            --arg run_attempt "$GITHUB_RUN_ATTEMPT" \
-            --arg test_result "$TEST_RESULT" \
-            --arg build_result "$BUILD_RESULT" \
-            --arg deploy_result "$DEPLOY_RESULT" \
-            --arg run_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-            '[{
-              timestamp: $timestamp,
-              application: $application,
-              environment: $environment,
-              level: $level,
-              status: $status,
-              message: $message,
-              repository: $repository,
-              branch: $branch,
-              commit: $commit,
-              actor: $actor,
-              event: $event,
-              run_id: $run_id,
-              run_number: $run_number,
-              run_attempt: $run_attempt,
-              test_result: $test_result,
-              build_result: $build_result,
-              deploy_result: $deploy_result,
-              run_url: $run_url
-            }]' > pipeline-log.json
+            elif [[ "$BUILD_RESULT" == "failure" ]]; then
+              STATUS="failure"
+              LEVEL="error"
+              MESSAGE="Error al construir o publicar la imagen Docker."
 
-          cat pipeline-log.json
+            elif [[ "$DEPLOY_RESULT" == "failure" ]]; then
+              STATUS="failure"
+              LEVEL="error"
+              MESSAGE="Error durante el despliegue en AWS EC2."
 
-      - name: Enviar registro a OpenObserve
-        shell: bash
-        run: |
-          set -eu
+            elif [[ "$TEST_RESULT" == "cancelled" || \
+                    "$BUILD_RESULT" == "cancelled" || \
+                    "$DEPLOY_RESULT" == "cancelled" ]]; then
+              STATUS="cancelled"
+              LEVEL="warn"
+              MESSAGE="Una etapa del pipeline fue cancelada."
 
-          if [[ -z "$OPENOBSERVE_URL" || -z "$OPENOBSERVE_AUTH" ]]; then
-            echo "::error::Faltan las credenciales de OpenObserve"
-            exit 1
-          fi
+            elif [[ "$DEPLOY_RESULT" == "skipped" ]]; then
+              STATUS="partial"
+              LEVEL="info"
+              MESSAGE="Pipeline ejecutado sin despliegue en AWS EC2."
 
-          curl --fail-with-body \
-            --silent \
-            --show-error \
-            --retry 3 \
-            --connect-timeout 15 \
-            --max-time 60 \
-            --request POST \
-            --user "$OPENOBSERVE_AUTH" \
-            --header "Content-Type: application/json" \
-            --data-binary @pipeline-log.json \
-            --output openobserve-response.json \
-            "$OPENOBSERVE_URL"
+            else
+              MESSAGE="Pruebas, Docker y despliegue AWS completados correctamente."
+            fi
 
-          cat openobserve-response.json
+            jq -n \
+              --arg timestamp "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+              --arg application "webapp-devops" \
+              --arg environment "ci-cd" \
+              --arg level "$LEVEL" \
+              --arg status "$STATUS" \
+              --arg message "$MESSAGE" \
+              --arg repository "$GITHUB_REPOSITORY" \
+              --arg branch "$GITHUB_REF_NAME" \
+              --arg commit "$GITHUB_SHA" \
+              --arg actor "$GITHUB_ACTOR" \
+              --arg event "$GITHUB_EVENT_NAME" \
+              --arg run_id "$GITHUB_RUN_ID" \
+              --arg run_number "$GITHUB_RUN_NUMBER" \
+              --arg run_attempt "$GITHUB_RUN_ATTEMPT" \
+              --arg test_result "$TEST_RESULT" \
+              --arg build_result "$BUILD_RESULT" \
+              --arg deploy_result "$DEPLOY_RESULT" \
+              --arg run_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+              '[{
+                timestamp: $timestamp,
+                application: $application,
+                environment: $environment,
+                level: $level,
+                status: $status,
+                message: $message,
+                repository: $repository,
+                branch: $branch,
+                commit: $commit,
+                actor: $actor,
+                event: $event,
+                run_id: $run_id,
+                run_number: $run_number,
+                run_attempt: $run_attempt,
+                test_result: $test_result,
+                build_result: $build_result,
+                deploy_result: $deploy_result,
+                run_url: $run_url
+              }]' > pipeline-log.json
 
-          jq -e '
-            .code == 200 and
-            (.status | length > 0) and
-            ([.status[].failed] | add == 0) and
-            ([.status[].successful] | add > 0)
-          ' openobserve-response.json
+            cat pipeline-log.json
 
-          echo "Registro enviado correctamente a OpenObserve"
+        - name: Enviar registro a OpenObserve
+          shell: bash
+          run: |
+            set -eu
 
-      - name: Guardar evidencia de observabilidad
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: reporte-observabilidad
-          path: |
-            pipeline-log.json
-            openobserve-response.json
-          retention-days: 30
+            if [[ -z "$OPENOBSERVE_URL" || -z "$OPENOBSERVE_AUTH" ]]; then
+              echo "::error::Faltan las credenciales de OpenObserve"
+              exit 1
+            fi
+
+            curl --fail-with-body \
+              --silent \
+              --show-error \
+              --retry 3 \
+              --connect-timeout 15 \
+              --max-time 60 \
+              --request POST \
+              --user "$OPENOBSERVE_AUTH" \
+              --header "Content-Type: application/json" \
+              --data-binary @pipeline-log.json \
+              --output openobserve-response.json \
+              "$OPENOBSERVE_URL"
+
+            cat openobserve-response.json
+
+            jq -e '
+              .code == 200 and
+              (.status | length > 0) and
+              ([.status[].failed] | add == 0) and
+              ([.status[].successful] | add > 0)
+            ' openobserve-response.json
+
+            echo "Registro enviado correctamente a OpenObserve"
+
+        - name: Guardar evidencia de observabilidad
+          if: always()
+          uses: actions/upload-artifact@v4
+          with:
+            name: reporte-observabilidad
+            path: |
+              pipeline-log.json
+              openobserve-response.json
+            retention-days: 30
