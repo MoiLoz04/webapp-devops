@@ -1,0 +1,40 @@
+name: Diagnostico OpenTelemetry
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnostico:
+    runs-on: ubuntu-latest
+
+    env:
+      OPENOBSERVE_URL: ${{ secrets.OPENOBSERVE_URL }}
+      OPENOBSERVE_AUTH: ${{ secrets.OPENOBSERVE_AUTH }}
+
+    steps:
+      - name: Comprobar conexion OTLP
+        shell: bash
+        run: |
+          set -eu
+
+          BASE="${OPENOBSERVE_URL%/}"
+          BASE="${BASE%/_json}"
+          BASE="${BASE%/*}"
+
+          echo "Comprobando trazas"
+
+          curl -sS \
+            --user "$OPENOBSERVE_AUTH" \
+            --header "Content-Type: application/json" \
+            --data '{"resourceSpans":[]}' \
+            --write-out '\nHTTP: %{http_code}\n' \
+            "$BASE/v1/traces"
+
+          echo "Comprobando metricas"
+
+          curl -sS \
+            --user "$OPENOBSERVE_AUTH" \
+            --header "Content-Type: application/json" \
+            --data '{"resourceMetrics":[]}' \
+            --write-out '\nHTTP: %{http_code}\n' \
+            "$BASE/v1/metrics"
