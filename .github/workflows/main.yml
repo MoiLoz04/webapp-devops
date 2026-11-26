@@ -182,3 +182,155 @@ jobs:
 
             docker logs --tail 50 webapp-container
             exit 1
+
+  # ==========================================
+  # JOB 4 - Observabilidad OpenObserve
+  # ==========================================
+
+  observability:
+    name: Registrar resultados en OpenObserve
+
+    needs:
+      - test
+      - build-and-push
+      - deploy-ec2
+
+    if: ${{ always() && !cancelled() && github.event_name != 'pull_request' }}
+
+    runs-on: ubuntu-latest
+
+    env:
+      OPENOBSERVE_URL: ${{ secrets.OPENOBSERVE_URL }}
+      OPENOBSERVE_AUTH: ${{ secrets.OPENOBSERVE_AUTH }}
+
+      TEST_RESULT: ${{ needs.test.result }}
+      BUILD_RESULT: ${{ needs.build-and-push.result }}
+      DEPLOY_RESULT: ${{ needs.deploy-ec2.result }}
+
+    steps:
+
+      - name: Generar registro del pipeline
+        shell: bash
+        run: |
+          set -eu
+
+          STATUS="success"
+          LEVEL="info"
+          MESSAGE="Pipeline ejecutado correctamente"
+
+          if [[ "$TEST_RESULT" == "failure" ]]; then
+            STATUS="failure"
+            LEVEL="error"
+            MESSAGE="Pruebas fallidas. Construccion y despliegue bloqueados."
+
+          elif [[ "$BUILD_RESULT" == "failure" ]]; then
+            STATUS="failure"
+            LEVEL="error"
+            MESSAGE="Error al construir o publicar la imagen Docker."
+
+          elif [[ "$DEPLOY_RESULT" == "failure" ]]; then
+            STATUS="failure"
+            LEVEL="error"
+            MESSAGE="Error durante el despliegue en AWS EC2."
+
+          elif [[ "$TEST_RESULT" == "cancelled" || \
+                  "$BUILD_RESULT" == "cancelled" || \
+                  "$DEPLOY_RESULT" == "cancelled" ]]; then
+            STATUS="cancelled"
+            LEVEL="warn"
+            MESSAGE="Una etapa del pipeline fue cancelada."
+
+          elif [[ "$DEPLOY_RESULT" == "skipped" ]]; then
+            STATUS="partial"
+            LEVEL="info"
+            MESSAGE="Pipeline ejecutado sin despliegue en AWS EC2."
+
+          else
+            MESSAGE="Pruebas, Docker y despliegue AWS completados correctamente."
+          fi
+
+          jq -n \
+            --arg timestamp "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg application "webapp-devops" \
+            --arg environment "ci-cd" \
+            --arg level "$LEVEL" \
+            --arg status "$STATUS" \
+            --arg message "$MESSAGE" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg branch "$GITHUB_REF_NAME" \
+            --arg commit "$GITHUB_SHA" \
+            --arg actor "$GITHUB_ACTOR" \
+            --arg event "$GITHUB_EVENT_NAME" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg run_number "$GITHUB_RUN_NUMBER" \
+            --arg run_attempt "$GITHUB_RUN_ATTEMPT" \
+            --arg test_result "$TEST_RESULT" \
+            --arg build_result "$BUILD_RESULT" \
+            --arg deploy_result "$DEPLOY_RESULT" \
+            --arg run_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            '[{
+              timestamp: $timestamp,
+              application: $application,
+              environment: $environment,
+              level: $level,
+              status: $status,
+              message: $message,
+              repository: $repository,
+              branch: $branch,
+              commit: $commit,
+              actor: $actor,
+              event: $event,
+              run_id: $run_id,
+              run_number: $run_number,
+              run_attempt: $run_attempt,
+              test_result: $test_result,
+              build_result: $build_result,
+              deploy_result: $deploy_result,
+              run_url: $run_url
+            }]' > pipeline-log.json
+
+          cat pipeline-log.json
+
+      - name: Enviar registro a OpenObserve
+        shell: bash
+        run: |
+          set -eu
+
+          if [[ -z "$OPENOBSERVE_URL" || -z "$OPENOBSERVE_AUTH" ]]; then
+            echo "::error::Faltan las credenciales de OpenObserve"
+            exit 1
+          fi
+
+          curl --fail-with-body \
+            --silent \
+            --show-error \
+            --retry 3 \
+            --connect-timeout 15 \
+            --max-time 60 \
+            --request POST \
+            --user "$OPENOBSERVE_AUTH" \
+            --header "Content-Type: application/json" \
+            --data-binary @pipeline-log.json \
+            --output openobserve-response.json \
+            "$OPENOBSERVE_URL"
+
+          cat openobserve-response.json
+
+          jq -e '
+            .code == 200 and
+            (.status | length > 0) and
+            ([.status[].failed] | add == 0) and
+            ([.status[].successful] | add > 0)
+          ' openobserve-response.json
+
+          echo "Registro enviado correctamente a OpenObserve"
+
+      - name: Guardar evidencia de observabilidad
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-observabilidad
+          path: |
+            pipeline-log.json
+            openobserve-response.json
+          retention-days: 30
