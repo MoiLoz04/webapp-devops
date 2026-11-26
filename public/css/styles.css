@@ -1,0 +1,264 @@
+
+:root {
+  --primary: #2563eb;
+  --dark: #0f172a;
+  --background: #f1f5f9;
+  --white: #ffffff;
+  --text: #1e293b;
+  --muted: #64748b;
+  --border: #dbe3ed;
+  --danger: #dc2626;
+  --success: #15803d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: var(--background);
+  color: var(--text);
+}
+
+.login-body {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(135deg, #0f172a, #1e3a8a);
+}
+
+.login-card {
+  background: white;
+  width: 100%;
+  max-width: 430px;
+  padding: 36px;
+  border-radius: 18px;
+  box-shadow: 0 20px 60px #0004;
+}
+
+.login-card h1,
+.login-card > p {
+  text-align: center;
+}
+
+.brand-icon {
+  background: var(--primary);
+  color: white;
+  width: 60px;
+  height: 60px;
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+  font-weight: bold;
+  margin: auto;
+}
+
+h1, h2, h3 {
+  margin-top: 0;
+}
+
+.login-card h1 {
+  margin-top: 20px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+label {
+  display: block;
+  font-size: 14px;
+  font-weight: bold;
+  margin: 15px 0 7px;
+}
+
+input, select {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font-size: 15px;
+  background: white;
+}
+
+input:focus, select:focus {
+  outline: 2px solid #93c5fd;
+  border-color: var(--primary);
+}
+
+button {
+  border: none;
+  border-radius: 7px;
+  background: var(--primary);
+  color: white;
+  padding: 12px 17px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  margin: 5px 3px 5px 0;
+}
+
+button:hover {
+  filter: brightness(.9);
+}
+
+button:disabled {
+  opacity: .6;
+  cursor: wait;
+}
+
+form button {
+  margin-top: 20px;
+}
+
+.login-card button {
+  width: 100%;
+}
+
+.danger {
+  background: var(--danger);
+}
+
+.sidebar {
+  width: 250px;
+  position: fixed;
+  inset: 0 auto 0 0;
+  background: var(--dark);
+  color: white;
+  padding: 25px;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar h2 {
+  font-size: 22px;
+}
+
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 25px 0;
+}
+
+.sidebar nav button {
+  background: #1e293b;
+  text-align: left;
+}
+
+.sidebar nav button.active {
+  background: var(--primary);
+}
+
+.sidebar #logout {
+  margin-top: auto;
+}
+
+.role {
+  background: #334155;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.content {
+  margin-left: 250px;
+  padding: 35px;
+  min-height: 100vh;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 20px;
+}
+
+.panel {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 22px;
+  box-shadow: 0 3px 12px #00000008;
+}
+
+.stats h2 {
+  color: var(--primary);
+  font-size: 30px;
+  margin-bottom: 0;
+}
+
+.table-container {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 13px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+th {
+  background: #f8fafc;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+td button {
+  padding: 8px 12px;
+}
+
+#mensaje {
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.error {
+  color: var(--danger);
+}
+
+.success {
+  color: var(--success);
+}
+
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--dark);
+  color: #86efac;
+  padding: 18px;
+  border-radius: 8px;
+}
+
+footer {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  margin-top: 25px;
+}
+
+@media (max-width: 760px) {
+  .sidebar {
+    position: static;
+    width: 100%;
+  }
+
+  .content {
+    margin-left: 0;
+    padding: 20px;
+  }
+}

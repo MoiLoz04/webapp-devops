@@ -1,29 +1,66 @@
+
 {
   "name": "webapp-devops",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "version": "2.0.0",
+  "description": "Sistema de inventario con Supabase, API REST, TCP y DevOps",
+  "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "test": "jest --testTimeout=10000"
+    "test": "jest --runInBand --testTimeout=60000",
+    "test:coverage": "jest --runInBand --coverage --testTimeout=60000",
+    "test:ci": "jest --ci --runInBand --coverage --testTimeout=60000",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report",
+    "test:all": "npm test && npm run test:e2e"
   },
-  "keywords": [],
+  "keywords": [
+    "devops",
+    "supabase",
+    "express",
+    "jest",
+    "docker"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@supabase/supabase-js": "^2.119.2",
     "better-sqlite3": "^13.0.3",
+    "dotenv": "^18.0.10",
     "express": "^5.2.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "jest": "^30.5.2",
     "supertest": "^7.3.0"
   },
   "jest": {
     "testEnvironment": "node",
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/tests/e2e/"
+    ],
     "collectCoverageFrom": [
+      "app.js",
       "src/routes.js",
-      "src/database.js"
-    ]
+      "src/auth.js",
+      "src/auth.routes.js",
+      "src/usuarios.js",
+      "src/supabase.js",
+      "src/socket.js"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": [
+      "text",
+      "html",
+      "lcov",
+      "json-summary"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "lines": 70
+      }
+    }
   }
 }

@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebApp DevOps | Dashboard</title>
+  <link rel="stylesheet" href="/css/styles.css">
+
+  <style>
+    [hidden] {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+
+  <aside class="sidebar">
+    <h2>WebApp DevOps</h2>
+
+    <p id="nombreUsuario"></p>
+    <span id="rolUsuario" class="role"></span>
+
+    <nav>
+      <button data-section="inicio">Inicio</button>
+
+      <button data-section="productos">
+        Productos
+      </button>
+
+      <button data-section="categorias">
+        Categorías
+      </button>
+
+      <button data-section="usuarios"
+              class="admin-only" hidden>
+        Usuarios
+      </button>
+
+      <button data-section="sistema"
+              class="admin-only" hidden>
+        Sistema
+      </button>
+    </nav>
+
+    <button id="logout" class="danger">
+      Cerrar sesión
+    </button>
+  </aside>
+
+  <main class="content">
+
+    <header>
+      <h1 id="tituloPanel">Panel de usuario</h1>
+      <p id="descripcionPanel" class="muted">
+        Consulta de inventario
+      </p>
+    </header>
+
+    <p id="mensaje" role="alert"></p>
+
+    <!-- INICIO -->
+
+    <section id="inicio" class="section">
+
+      <h2>Resumen general</h2>
+
+      <div class="stats">
+
+        <article class="panel">
+          <p>Productos registrados</p>
+          <h2 id="totalProductos">0</h2>
+        </article>
+
+        <article class="panel">
+          <p>Categorías registradas</p>
+          <h2 id="totalCategorias">0</h2>
+        </article>
+
+        <article class="panel admin-only" hidden>
+          <p>Estado del servidor</p>
+          <h2 id="estadoServidor">Verificando...</h2>
+        </article>
+
+      </div>
+
+      <div class="panel user-only" hidden>
+        <h3>Bienvenido al sistema de inventario</h3>
+
+        <p>
+          Puedes consultar los productos disponibles,
+          sus precios, existencias y categorías.
+        </p>
+
+        <p>
+          Tu cuenta cuenta con permisos de solo lectura.
+        </p>
+      </div>
+
+    </section>
+
+    <!-- PRODUCTOS -->
+
+    <section id="productos" class="section" hidden>
+
+      <h2 id="tituloProductos">Consulta de productos</h2>
+
+      <form id="formProducto"
+            class="panel admin-only" hidden>
+
+        <h3>Registrar producto</h3>
+
+        <label>Nombre</label>
+        <input id="productoNombre" required>
+
+        <label>Precio</label>
+        <input id="productoPrecio"
+               type="number"
+               min="0"
+               step="0.01"
+               required>
+
+        <label>Stock</label>
+        <input id="productoStock"
+               type="number"
+               min="0"
+               step="1"
+               required>
+
+        <button type="submit">
+          Guardar producto
+        </button>
+
+      </form>
+
+      <div class="panel table-container">
+
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nombre</th>
+              <th>Precio</th>
+              <th>Stock</th>
+              <th class="admin-only" hidden>
+                Acciones
+              </th>
+            </tr>
+          </thead>
+
+          <tbody id="tablaProductos"></tbody>
+        </table>
+
+      </div>
+
+    </section>
+
+    <!-- CATEGORÍAS -->
+
+    <section id="categorias" class="section" hidden>
+
+      <h2 id="tituloCategorias">
+        Consulta de categorías
+      </h2>
+
+      <form id="formCategoria"
+            class="panel admin-only" hidden>
+
+        <h3>Registrar categoría</h3>
+
+        <label>Nombre</label>
+        <input id="categoriaNombre" required>
+
+        <button type="submit">
+          Guardar categoría
+        </button>
+
+      </form>
+
+      <div class="panel table-container">
+
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nombre</th>
+              <th class="admin-only" hidden>
+                Acciones
+              </th>
+            </tr>
+          </thead>
+
+          <tbody id="tablaCategorias"></tbody>
+        </table>
+
+      </div>
+
+    </section>
+
+    <!-- USUARIOS -->
+
+    <section id="usuarios" class="section" hidden>
+
+      <h2>Administración de usuarios</h2>
+
+      <form id="formUsuario" class="panel">
+
+        <h3 id="tituloUsuario">Registrar usuario</h3>
+
+        <input type="hidden" id="usuarioId">
+
+        <label>Nombre</label>
+        <input id="usuarioNombre" required>
+
+        <label>Correo electrónico</label>
+        <input id="usuarioEmail"
+               type="email"
+               required>
+
+        <label>Contraseña</label>
+        <input id="usuarioPassword"
+               type="password"
+               minlength="8"
+               required>
+
+        <label>Rol</label>
+
+        <select id="usuarioRol">
+          <option value="usuario">Usuario</option>
+          <option value="admin">Administrador</option>
+        </select>
+
+        <button type="submit">
+          Guardar usuario
+        </button>
+
+        <button type="button"
+                id="cancelarEdicion" hidden>
+          Cancelar edición
+        </button>
+
+      </form>
+
+      <div class="panel table-container">
+
+        <table>
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Correo</th>
+              <th>Rol</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+
+          <tbody id="tablaUsuarios"></tbody>
+        </table>
+
+      </div>
+
+    </section>
+
+    <!-- SISTEMA -->
+
+    <section id="sistema" class="section" hidden>
+
+      <h2>Estado del sistema</h2>
+
+      <div class="panel">
+
+        <h3>Servicios</h3>
+
+        <p>API REST: puerto 8080</p>
+        <p>Servidor TCP: puerto 6061</p>
+        <p>Base de datos: Supabase / PostgreSQL</p>
+        <p>Autenticación: Supabase Auth</p>
+
+        <button id="verificarHealth">
+          Verificar servidor
+        </button>
+
+        <button id="generarBackup">
+          Solicitar respaldo
+        </button>
+
+        <pre id="resultadoSistema"></pre>
+
+      </div>
+
+    </section>
+
+    <footer>
+      WebApp DevOps · Gestión del proceso de desarrollo
+    </footer>
+
+  </main>
+
+  <script src="/js/dashboard.js"></script>
+
+</body>
+</html>

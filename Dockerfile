@@ -1,23 +1,35 @@
-# 1. Usar la versión oficial de Node 22 en Alpine
-FROM node:22-alpine
 
-# 2. Instalar herramientas de desarrollo requeridas para compilar better-sqlite3
-RUN apk add --no-cache python3 make g++
+FROM node:24-bookworm-slim AS dependencies
 
-# 3. Crear el directorio de trabajo dentro del contenedor
 WORKDIR /app
 
-# 4. Copiar los archivos de configuración de dependencias
-COPY package*.json ./
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 
-# 5. Instalar dependencias compilando los módulos nativos
-RUN npm install --omit=dev
+COPY package.json package-lock.json ./
 
-# 6. Copiar todo el código de tu proyecto al contenedor
-COPY . .
+RUN npm ci --omit=dev
 
-# 7. Exponer el puerto 80
-EXPOSE 8080   
+FROM node:24-bookworm-slim
 
-# 8. Ejecutar tu archivo principal app.js
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=8080
+
+COPY --from=dependencies /app/node_modules ./node_modules
+
+COPY --chown=node:node . .
+
+RUN chown node:node /app
+
+USER node
+
+EXPOSE 8080 6061
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+    CMD node -e "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
 CMD ["node", "app.js"]

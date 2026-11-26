@@ -1,0 +1,31 @@
+
+services:
+  webapp:
+    container_name: webapp-devops
+    image: webapp-devops:2.0.0
+
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:6061:6061"
+
+    env_file:
+      - .env
+
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      TCP_PORT: 6061
+      TCP_HOST: 0.0.0.0
+
+    networks:
+      - webapp-network
+
+networks:
+  webapp-network:
+    driver: bridge

@@ -1,222 +1,815 @@
+require('dotenv').config();
+
+process.env.ALLOW_DATABASE_RESET = 'false';
+process.env.TCP_PORT = '0';
+process.env.TCP_HOST = '127.0.0.1';
+
 const request = require('supertest');
-const express = require('express');
-const app = express();
-app.use(express.json());
-app.use('/api', require('./src/routes'));
+const net = require('net');
+const { randomUUID } = require('crypto');
+const app = require('./app');
 
-beforeEach(async () => {
-  await request(app).delete('/api/vaciar');
-});
-  
-// ═══════════════════════════════════════════
-// ENDPOINT 1 — POST /api/productos
-// ═══════════════════════════════════════════
-test('EP1-1: POST /api/productos - Debe crear producto y retornar 201', async () => {
-  const res = await request(app)
-    .post('/api/productos')
-    .send({ nombre: 'Laptop', precio: 15000, stock: 5 });
-  expect(res.statusCode).toBe(201);
-  expect(res.body.data.nombre).toBe('Laptop');
-});
+jest.setTimeout(60000);
 
-test('EP1-2: POST /api/productos - Debe retornar 400 si falta el precio', async () => {
-  const res = await request(app)
-    .post('/api/productos')
-    .send({ nombre: 'Tablet' });
-  expect(res.statusCode).toBe(400);
-});
+const prefijo = `QA-${randomUUID()}`;
 
-test('EP1-3: POST /api/productos - Debe retornar 400 si falta el nombre', async () => {
-  const res = await request(app)
-    .post('/api/productos')
-    .send({ precio: 500 });
-  expect(res.statusCode).toBe(400);
-});
+const adminEmail = process.env.TEST_ADMIN_EMAIL;
+const adminPassword = process.env.TEST_ADMIN_PASSWORD;
 
-// ═══════════════════════════════════════════
-// ENDPOINT 2 — GET /api/productos
-// ═══════════════════════════════════════════
-test('EP2-1: GET /api/productos - Debe retornar 200 y un arreglo', async () => {
-  const res = await request(app).get('/api/productos');
-  expect(res.statusCode).toBe(200);
-  expect(Array.isArray(res.body.data)).toBe(true);
-});
+const usuarioEmail = `${prefijo.toLowerCase()}@example.com`;
+const usuarioPassword = randomUUID() + 'Aa1!';
 
-test('EP2-2: GET /api/productos - Arreglo vacio si no hay productos', async () => {
-  const res = await request(app).get('/api/productos');
-  expect(res.statusCode).toBe(200);
-  expect(res.body.data.length).toBe(0);
-});
+const nombreProducto = `${prefijo}-Producto`;
+const nombreCategoria = `${prefijo}-Categoria`;
 
-test('EP2-3: GET /api/productos - Debe retornar productos creados', async () => {
-  await request(app).post('/api/productos').send({ nombre: 'Mouse', precio: 300, stock: 10 });
-  const res = await request(app).get('/api/productos');
-  expect(res.body.data.length).toBeGreaterThan(0);
-});
+let adminToken;
+let usuarioToken;
+let usuarioId;
+let adminId;
+let productoId;
+let categoriaId;
+let servidorTCP;
 
-// ═══════════════════════════════════════════
-// ENDPOINT 3 — GET /api/productos/:id
-// ═══════════════════════════════════════════
-test('EP3-1: GET /api/productos/:id - Debe retornar el producto correcto', async () => {
-  const created = await request(app).post('/api/productos').send({ nombre: 'Monitor', precio: 5000, stock: 2 });
-  const id = created.body.data.id;
-  const res = await request(app).get(`/api/productos/${id}`);
-  expect(res.statusCode).toBe(200);
-  expect(res.body.data.nombre).toBe('Monitor');
-});
+const productosCreados = new Set();
+const categoriasCreadas = new Set();
+const usuariosCreados = new Set();
 
-test('EP3-2: GET /api/productos/:id - Debe retornar 404 si no existe', async () => {
-  const res = await request(app).get('/api/productos/9999');
-  expect(res.statusCode).toBe(404);
-});
+function peticion(metodo, ruta, token) {
+  const req = request(app)[metodo](ruta);
 
-test('EP3-3: GET /api/productos/:id - Debe retornar 404 con id negativo', async () => {
-  const res = await request(app).get('/api/productos/-1');
-  expect(res.statusCode).toBe(404);
-});
+  if (token) {
+    req.set('Authorization', `Bearer ${token}`);
+  }
 
-// ═══════════════════════════════════════════
-// ENDPOINT 4 — DELETE /api/productos/:id
-// ═══════════════════════════════════════════
-test('EP4-1: DELETE /api/productos/:id - Debe eliminar y retornar 200', async () => {
-  const created = await request(app).post('/api/productos').send({ nombre: 'Teclado', precio: 800, stock: 3 });
-  const id = created.body.data.id;
-  const res = await request(app).delete(`/api/productos/${id}`);
-  expect(res.statusCode).toBe(200);
-});
+  return req;
+}
 
-test('EP4-2: DELETE /api/productos/:id - Debe retornar 404 si no existe', async () => {
-  const res = await request(app).delete('/api/productos/9999');
-  expect(res.statusCode).toBe(404);
-});
+async function login(email, password) {
+  return request(app)
+    .post('/api/auth/login')
+    .send({ email, password });
+}
 
-test('EP4-3: DELETE /api/productos/:id - Producto no debe existir tras eliminarlo', async () => {
-  const created = await request(app).post('/api/productos').send({ nombre: 'Bocina', precio: 1200, stock: 1 });
-  const id = created.body.data.id;
-  await request(app).delete(`/api/productos/${id}`);
-  const res = await request(app).get(`/api/productos/${id}`);
-  expect(res.statusCode).toBe(404);
-});
+function verificar(res, codigo) {
+  expect(res.status).toBe(codigo);
+  expect(res.body.statusCode).toBe(codigo);
+}
 
-// ═══════════════════════════════════════════
-// ENDPOINT 5 — POST /api/categorias
-// ═══════════════════════════════════════════
-test('EP5-1: POST /api/categorias - Debe crear categoria y retornar 201', async () => {
-  const res = await request(app).post('/api/categorias').send({ nombre: 'Electronica' });
-  expect(res.statusCode).toBe(201);
-  expect(res.body.data.nombre).toBe('Electronica');
-});
+async function crearProducto(nombre = nombreProducto) {
+  const res = await peticion(
+    'post', '/api/productos', adminToken
+  ).send({
+    nombre,
+    precio: 12500,
+    stock: 10
+  });
 
-test('EP5-2: POST /api/categorias - Debe retornar 400 si falta el nombre', async () => {
-  const res = await request(app).post('/api/categorias').send({});
-  expect(res.statusCode).toBe(400);
-});
+  if (res.body.data?.id && res.status === 201) {
+    productosCreados.add(res.body.data.id);
+  }
 
-test('EP5-3: POST /api/categorias - Debe retornar 400 si el nombre es un texto vacío', async () => {
-  const res = await request(app).post('/api/categorias').send({ nombre: '' });
-  expect(res.statusCode).toBe(400);
-});
+  verificar(res, 201);
 
-// ═══════════════════════════════════════════
-// ENDPOINT 6 — GET /api/categorias
-// ═══════════════════════════════════════════
-test('EP6-1: GET /api/categorias - Debe retornar 200 y un arreglo', async () => {
-  const res = await request(app).get('/api/categorias');
-  expect(res.statusCode).toBe(200);
-  expect(Array.isArray(res.body.data)).toBe(true);
-});
+  return res.body.data;
+}
 
-test('EP6-2: GET /api/categorias - Arreglo vacio si no hay categorias', async () => {
-  const res = await request(app).get('/api/categorias');
-  expect(res.statusCode).toBe(200);
-  expect(res.body.data.length).toBe(0);
-});
+async function crearCategoria(nombre = nombreCategoria) {
+  const res = await peticion(
+    'post', '/api/categorias', adminToken
+  ).send({ nombre });
 
-test('EP6-3: GET /api/categorias - Debe retornar categorias creadas', async () => {
-  await request(app).post('/api/categorias').send({ nombre: 'Libros' });
-  const res = await request(app).get('/api/categorias');
-  expect(res.body.data.length).toBeGreaterThan(0);
-});
+  if (res.body.data?.id && res.status === 201) {
+    categoriasCreadas.add(res.body.data.id);
+  }
 
-// ═══════════════════════════════════════════
-// ENDPOINT 7 — DELETE /api/categorias/:id
-// ═══════════════════════════════════════════
-test('EP7-1: DELETE /api/categorias/:id - Debe eliminar y retornar 200', async () => {
-  const created = await request(app).post('/api/categorias').send({ nombre: 'Juguetes' });
-  const id = created.body.data.id;
-  const res = await request(app).delete(`/api/categorias/${id}`);
-  expect(res.statusCode).toBe(200);
-});
+  verificar(res, 201);
 
-test('EP7-2: DELETE /api/categorias/:id - Debe retornar 404 si no existe', async () => {
-  const res = await request(app).delete('/api/categorias/9999');
-  expect(res.statusCode).toBe(404);
-});
+  return res.body.data;
+}
 
-test('EP7-3: DELETE /api/categorias/:id - Categoria no debe existir tras eliminarse', async () => {
-  const created = await request(app).post('/api/categorias').send({ nombre: 'Ferreteria' });
-  const id = created.body.data.id;
-  await request(app).delete(`/api/categorias/${id}`);
-  const res = await request(app).get('/api/categorias');
-  expect(res.body.data.length).toBe(0);
-});
+async function crearUsuario(email, nombre) {
+  const res = await peticion(
+    'post', '/api/usuarios', adminToken
+  ).send({
+    email,
+    password: usuarioPassword,
+    nombre,
+    rol: 'usuario'
+  });
 
-// ═══════════════════════════════════════════
-// ENDPOINT 8 — GET /api/health
-// ═══════════════════════════════════════════
-test('EP8-1: GET /api/health - Debe retornar 200 y estado OK', async () => {
-  const res = await request(app).get('/api/health');
-  expect(res.statusCode).toBe(200);
-  expect(res.body.data.estado).toBe('OK2');
-});
+  if (res.body.data?.id && res.status === 201) {
+    usuariosCreados.add(res.body.data.id);
+  }
 
-test('EP8-2: GET /api/health - Respuesta debe tener timestamp', async () => {
-  const res = await request(app).get('/api/health');
-  expect(res.body.data).toHaveProperty('timestamp');
-});
+  verificar(res, 201);
 
-test('EP8-3: GET /api/health - Timestamp debe ser una fecha valida', async () => {
-  const res = await request(app).get('/api/health');
-  const isValidDate = !isNaN(Date.parse(res.body.data.timestamp));
-  expect(isValidDate).toBe(true);
-});
-//ok
-// ═══════════════════════════════════════════
-// ENDPOINT 9 — GET /api/backup
-// ═══════════════════════════════════════════
-test('EP9-1: GET /api/backup - Debe retornar 200', async () => {
-  const res = await request(app).get('/api/backup');
-  expect(res.statusCode).toBe(200);
-});
+  return res.body.data;
+}
 
-test('EP9-2: GET /api/backup - Debe retornar nombre del archivo', async () => {
-  const res = await request(app).get('/api/backup');
-  expect(res.body.data.archivo).toBe('backup_database.sqlite');
-});
+function enviarTCP(mensaje) {
+  return new Promise((resolve, reject) => {
+    const socket = net.createConnection({
+      host: '127.0.0.1',
+      port: servidorTCP.address().port
+    });
 
-test('EP9-3: GET /api/backup - Debe retornar el tamaño en bytes', async () => {
-  const res = await request(app).get('/api/backup');
-  expect(res.body.data.tamano_bytes).toBeGreaterThan(0);
-});
+    let buffer = '';
 
-// ═══════════════════════════════════════════
-// ENDPOINT 10 — DELETE /api/vaciar
-// ═══════════════════════════════════════════
-test('EP10-1: DELETE /api/vaciar - Debe retornar 200', async () => {
-  const res = await request(app).delete('/api/vaciar');
-  expect(res.statusCode).toBe(200);
-});
+    socket.setEncoding('utf8');
+    socket.setTimeout(20000);
 
-test('EP10-2: DELETE /api/vaciar - Productos deben quedar vacios', async () => {
-  await request(app).post('/api/productos').send({ nombre: 'Ropa', precio: 100 });
-  await request(app).delete('/api/vaciar');
-  const res = await request(app).get('/api/productos');
-  expect(res.body.data.length).toBe(0);
+    socket.on('connect', () => {
+      const contenido =
+        typeof mensaje === 'string'
+          ? mensaje
+          : JSON.stringify(mensaje);
+
+      socket.write(contenido + '\n');
+    });
+
+    socket.on('data', data => {
+      buffer += data;
+
+      const indice = buffer.indexOf('\n');
+
+      if (indice !== -1) {
+        try {
+          const respuesta = JSON.parse(
+            buffer.slice(0, indice)
+          );
+
+          socket.destroy();
+          resolve(respuesta);
+        } catch (error) {
+          socket.destroy();
+          reject(error);
+        }
+      }
+    });
+
+    socket.on('timeout', () => {
+      socket.destroy();
+      reject(new Error('Tiempo de espera TCP agotado'));
+    });
+
+    socket.on('error', reject);
+
+    socket.on('close', () => {
+      reject(new Error('Conexion TCP cerrada'));
+    });
+  });
+}
+
+// ==========================================
+// CONFIGURACION INICIAL
+// ==========================================
+
+beforeAll(async () => {
+  if (!adminEmail || !adminPassword) {
+    throw new Error(
+      'Configura TEST_ADMIN_EMAIL y TEST_ADMIN_PASSWORD'
+    );
+  }
+
+  const resAdmin = await login(
+    adminEmail,
+    adminPassword
+  );
+
+  verificar(resAdmin, 200);
+
+  adminToken = resAdmin.body.data.access_token;
+  adminId = resAdmin.body.data.usuario.id;
+
+  expect(resAdmin.body.data.usuario.rol).toBe('admin');
+
+  const usuario = await crearUsuario(
+    usuarioEmail,
+    `${prefijo}-Usuario`
+  );
+
+  usuarioId = usuario.id;
+
+  const resUsuario = await login(
+    usuarioEmail,
+    usuarioPassword
+  );
+
+  verificar(resUsuario, 200);
+
+  usuarioToken = resUsuario.body.data.access_token;
+
+  const producto = await crearProducto();
+  productoId = producto.id;
+
+  const categoria = await crearCategoria();
+  categoriaId = categoria.id;
+
+  servidorTCP = require('./src/socket');
+
+  if (!servidorTCP.listening) {
+    await new Promise((resolve, reject) => {
+      servidorTCP.once('listening', resolve);
+      servidorTCP.once('error', reject);
+    });
+  }
 });
 
-test('EP10-3: DELETE /api/vaciar - Categorias deben quedar vacias', async () => {
-  await request(app).post('/api/categorias').send({ nombre: 'Calzado' });
-  await request(app).delete('/api/vaciar');
-  const res = await request(app).get('/api/categorias');
-  expect(res.body.data.length).toBe(0);
+// ==========================================
+// LIMPIEZA DE REGISTROS DE PRUEBA
+// ==========================================
+
+afterAll(async () => {
+  const errores = [];
+
+  try {
+    if (adminToken) {
+      const grupos = [
+        ['productos', productosCreados],
+        ['categorias', categoriasCreadas],
+        ['usuarios', usuariosCreados]
+      ];
+
+      for (const [ruta, registros] of grupos) {
+        for (const id of registros) {
+          try {
+            const res = await peticion(
+              'delete',
+              `/api/${ruta}/${id}`,
+              adminToken
+            );
+
+            if (![200, 404].includes(res.status)) {
+              errores.push(`${ruta}/${id}: ${res.status}`);
+            }
+          } catch (error) {
+            errores.push(`${ruta}/${id}: ${error.message}`);
+          }
+        }
+      }
+    }
+  } finally {
+    if (servidorTCP?.listening) {
+      await new Promise(resolve => {
+        servidorTCP.close(resolve);
+      });
+    }
+  }
+
+  if (errores.length) {
+    throw new Error(
+      'Registros pendientes de limpieza: ' +
+      errores.join(', ')
+    );
+  }
+});
+
+// ==========================================
+// MODULO 1: AUTENTICACION
+// ==========================================
+
+describe('Modulo 1 - Autenticacion', () => {
+
+  test('TC001 - Login correcto del administrador', async () => {
+    const res = await login(adminEmail, adminPassword);
+
+    verificar(res, 200);
+    expect(res.body.data.usuario.rol).toBe('admin');
+    expect(res.body.data.access_token).toBeTruthy();
+  });
+
+  test('TC002 - Login correcto del usuario normal', async () => {
+    const res = await login(usuarioEmail, usuarioPassword);
+
+    verificar(res, 200);
+    expect(res.body.data.usuario.rol).toBe('usuario');
+  });
+
+  test('TC003 - Rechazar credenciales incorrectas', async () => {
+    const res = await login(
+      usuarioEmail,
+      randomUUID()
+    );
+
+    verificar(res, 401);
+  });
+
+  test('TC004 - Rechazar campos vacios', async () => {
+    const res = await login('', '');
+
+    verificar(res, 400);
+  });
+
+  test('TC005 - Rechazar solicitud sin token', async () => {
+    const res = await request(app).get('/api/productos');
+
+    verificar(res, 401);
+  });
+
+  test('TC006 - Rechazar token invalido', async () => {
+    const res = await peticion(
+      'get', '/api/productos', 'token-invalido'
+    );
+
+    verificar(res, 401);
+  });
+
+  test('TC007 - Consultar perfil del administrador', async () => {
+    const res = await peticion(
+      'get', '/api/auth/me', adminToken
+    );
+
+    verificar(res, 200);
+    expect(res.body.data.id).toBe(adminId);
+    expect(res.body.data.rol).toBe('admin');
+  });
+
+  test('TC008 - Consultar perfil del usuario normal', async () => {
+    const res = await peticion(
+      'get', '/api/auth/me', usuarioToken
+    );
+
+    verificar(res, 200);
+    expect(res.body.data.id).toBe(usuarioId);
+    expect(res.body.data.rol).toBe('usuario');
+  });
+});
+
+// ==========================================
+// MODULO 2: PRODUCTOS
+// ==========================================
+
+describe('Modulo 2 - Productos', () => {
+
+  test('TC009 - Registrar producto correctamente', async () => {
+    const producto = await crearProducto(
+      `${prefijo}-NuevoProducto`
+    );
+
+    expect(producto.precio).toBe(12500);
+    expect(producto.stock).toBe(10);
+  });
+
+  test('TC010 - Consultar productos registrados', async () => {
+    const res = await peticion(
+      'get', '/api/productos', adminToken
+    );
+
+    verificar(res, 200);
+
+    expect(res.body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: productoId })
+      ])
+    );
+  });
+
+  test('TC011 - Consultar producto por ID', async () => {
+    const res = await peticion(
+      'get',
+      `/api/productos/${productoId}`,
+      adminToken
+    );
+
+    verificar(res, 200);
+    expect(res.body.data.nombre).toBe(nombreProducto);
+  });
+
+  test('TC012 - Rechazar ID de producto invalido', async () => {
+    const res = await peticion(
+      'get', '/api/productos/invalido', adminToken
+    );
+
+    verificar(res, 404);
+  });
+
+  test('TC013 - Rechazar producto sin nombre', async () => {
+    const res = await peticion(
+      'post', '/api/productos', adminToken
+    ).send({
+      precio: 100,
+      stock: 5
+    });
+
+    verificar(res, 400);
+  });
+
+  test('TC014 - Rechazar precio negativo', async () => {
+    const res = await peticion(
+      'post', '/api/productos', adminToken
+    ).send({
+      nombre: `${prefijo}-Invalido`,
+      precio: -100,
+      stock: 5
+    });
+
+    verificar(res, 400);
+  });
+
+  test('TC015 - Eliminar producto de prueba', async () => {
+    const producto = await crearProducto(
+      `${prefijo}-EliminarProducto`
+    );
+
+    const res = await peticion(
+      'delete',
+      `/api/productos/${producto.id}`,
+      adminToken
+    );
+
+    verificar(res, 200);
+    productosCreados.delete(producto.id);
+
+    const consulta = await peticion(
+      'get',
+      `/api/productos/${producto.id}`,
+      adminToken
+    );
+
+    verificar(consulta, 404);
+  });
+});
+
+// ==========================================
+// MODULO 3: CATEGORIAS
+// ==========================================
+
+describe('Modulo 3 - Categorias', () => {
+
+  test('TC016 - Registrar categoria', async () => {
+    const categoria = await crearCategoria(
+      `${prefijo}-NuevaCategoria`
+    );
+
+    expect(categoria.id).toBeTruthy();
+  });
+
+  test('TC017 - Consultar categorias', async () => {
+    const res = await peticion(
+      'get', '/api/categorias', adminToken
+    );
+
+    verificar(res, 200);
+
+    expect(res.body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: categoriaId })
+      ])
+    );
+  });
+
+  test('TC018 - Rechazar categoria vacia', async () => {
+    const res = await peticion(
+      'post', '/api/categorias', adminToken
+    ).send({ nombre: '' });
+
+    verificar(res, 400);
+  });
+
+  test('TC019 - Rechazar categoria duplicada', async () => {
+    const res = await peticion(
+      'post', '/api/categorias', adminToken
+    ).send({ nombre: nombreCategoria });
+
+    if (res.status === 201 && res.body.data?.id) {
+      categoriasCreadas.add(res.body.data.id);
+    }
+
+    verificar(res, 400);
+  });
+
+  test('TC020 - Eliminar categoria de prueba', async () => {
+    const categoria = await crearCategoria(
+      `${prefijo}-EliminarCategoria`
+    );
+
+    const res = await peticion(
+      'delete',
+      `/api/categorias/${categoria.id}`,
+      adminToken
+    );
+
+    verificar(res, 200);
+    categoriasCreadas.delete(categoria.id);
+  });
+});
+
+// ==========================================
+// MODULO 4: USUARIOS
+// ==========================================
+
+describe('Modulo 4 - Administracion de usuarios', () => {
+
+  test('TC021 - Crear usuario correctamente', async () => {
+    const usuario = await crearUsuario(
+      `${randomUUID()}@example.com`,
+      `${prefijo}-NuevoUsuario`
+    );
+
+    expect(usuario.rol).toBe('usuario');
+  });
+
+  test('TC022 - Consultar listado de usuarios', async () => {
+    const res = await peticion(
+      'get', '/api/usuarios', adminToken
+    );
+
+    verificar(res, 200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+  });
+
+  test('TC023 - Consultar usuario por ID', async () => {
+    const res = await peticion(
+      'get',
+      `/api/usuarios/${usuarioId}`,
+      adminToken
+    );
+
+    verificar(res, 200);
+    expect(res.body.data.email).toBe(usuarioEmail);
+  });
+
+  test('TC024 - Actualizar nombre del usuario', async () => {
+    const nombre = `${prefijo}-Actualizado`;
+
+    const res = await peticion(
+      'put',
+      `/api/usuarios/${usuarioId}`,
+      adminToken
+    ).send({
+      nombre,
+      rol: 'usuario'
+    });
+
+    verificar(res, 200);
+    expect(res.body.data.nombre).toBe(nombre);
+  });
+
+  test('TC025 - Rechazar datos de usuario invalidos', async () => {
+    const res = await peticion(
+      'post', '/api/usuarios', adminToken
+    ).send({
+      email: 'correo-invalido',
+      password: '123',
+      nombre: '',
+      rol: 'invalido'
+    });
+
+    verificar(res, 400);
+  });
+
+  test('TC026 - Rechazar ID de usuario invalido', async () => {
+    const res = await peticion(
+      'get', '/api/usuarios/invalido', adminToken
+    );
+
+    verificar(res, 400);
+  });
+
+  test('TC027 - Eliminar usuario temporal', async () => {
+    const usuario = await crearUsuario(
+      `${randomUUID()}@example.com`,
+      `${prefijo}-EliminarUsuario`
+    );
+
+    const res = await peticion(
+      'delete',
+      `/api/usuarios/${usuario.id}`,
+      adminToken
+    );
+
+    verificar(res, 200);
+    usuariosCreados.delete(usuario.id);
+  });
+});
+
+// ==========================================
+// MODULO 5: SEGURIDAD Y PERMISOS
+// ==========================================
+
+describe('Modulo 5 - Seguridad y permisos', () => {
+
+  test('TC028 - Usuario normal puede consultar productos', async () => {
+    const res = await peticion(
+      'get', '/api/productos', usuarioToken
+    );
+
+    verificar(res, 200);
+  });
+
+  test('TC029 - Usuario normal puede consultar categorias', async () => {
+    const res = await peticion(
+      'get', '/api/categorias', usuarioToken
+    );
+
+    verificar(res, 200);
+  });
+
+  test('TC030 - Usuario normal no puede crear productos', async () => {
+    const res = await peticion(
+      'post', '/api/productos', usuarioToken
+    ).send({
+      nombre: `${prefijo}-NoPermitido`,
+      precio: 100,
+      stock: 1
+    });
+
+    if (res.status === 201 && res.body.data?.id) {
+      productosCreados.add(res.body.data.id);
+    }
+
+    verificar(res, 403);
+  });
+
+  test('TC031 - Usuario normal no puede eliminar productos', async () => {
+    const res = await peticion(
+      'delete',
+      `/api/productos/${productoId}`,
+      usuarioToken
+    );
+
+    verificar(res, 403);
+  });
+
+  test('TC032 - Usuario normal no puede crear categorias', async () => {
+    const res = await peticion(
+      'post', '/api/categorias', usuarioToken
+    ).send({
+      nombre: `${prefijo}-NoPermitida`
+    });
+
+    if (res.status === 201 && res.body.data?.id) {
+      categoriasCreadas.add(res.body.data.id);
+    }
+
+    verificar(res, 403);
+  });
+
+  test('TC033 - Usuario normal no puede eliminar categorias', async () => {
+    const res = await peticion(
+      'delete',
+      `/api/categorias/${categoriaId}`,
+      usuarioToken
+    );
+
+    verificar(res, 403);
+  });
+
+  test('TC034 - Usuario normal no puede administrar usuarios', async () => {
+    const res = await peticion(
+      'get', '/api/usuarios', usuarioToken
+    );
+
+    verificar(res, 403);
+  });
+
+  test('TC035 - Usuario normal no puede generar respaldos', async () => {
+    const res = await peticion(
+      'get', '/api/backup', usuarioToken
+    );
+
+    verificar(res, 403);
+  });
+
+  test('TC036 - Usuario normal no puede vaciar la base de datos', async () => {
+    const res = await peticion(
+      'delete', '/api/vaciar', usuarioToken
+    );
+
+    verificar(res, 403);
+
+    expect(res.body.message).toBe(
+      'Permisos insuficientes'
+    );
+  });
+});
+
+// ==========================================
+// MODULO 6: SISTEMA
+// ==========================================
+
+describe('Modulo 6 - Sistema y respaldo', () => {
+
+  test('TC037 - Verificar estado del servidor', async () => {
+    const res = await request(app).get('/api/health');
+
+    verificar(res, 200);
+    expect(res.body.data.estado).toBe('OK');
+    expect(res.body.data.timestamp).toBeTruthy();
+  });
+
+  test('TC038 - Generar respaldo de informacion', async () => {
+    const res = await peticion(
+      'get', '/api/backup', adminToken
+    );
+
+    verificar(res, 200);
+
+    expect(res.body.data.archivo).toBe(
+      'backup_database.json'
+    );
+
+    expect(res.body.data.tamano_bytes).toBeGreaterThan(0);
+  });
+
+  test('TC039 - Bloquear vaciado incluso para administrador', async () => {
+    expect(process.env.ALLOW_DATABASE_RESET).toBe('false');
+
+    const res = await peticion(
+      'delete', '/api/vaciar', adminToken
+    );
+
+    verificar(res, 403);
+
+    expect(res.body.data.mensaje).toBe(
+      'Vaciado de base de datos deshabilitado'
+    );
+  });
+});
+
+// ==========================================
+// MODULO 7: COMUNICACION TCP
+// ==========================================
+
+describe('Modulo 7 - Comunicacion TCP', () => {
+
+  test('TC040 - Consultar productos mediante TCP', async () => {
+    const res = await enviarTCP({
+      token: adminToken,
+      get: 'productos'
+    });
+
+    expect(res.statusCode).toBe(200);
+
+    expect(res.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: productoId })
+      ])
+    );
+  });
+
+  test('TC041 - Consultar categorias mediante TCP', async () => {
+    const res = await enviarTCP({
+      token: usuarioToken,
+      get: 'categorias'
+    });
+
+    expect(res.statusCode).toBe(200);
+
+    expect(res.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: categoriaId })
+      ])
+    );
+  });
+
+  test('TC042 - Rechazar solicitud TCP sin token', async () => {
+    const res = await enviarTCP({
+      get: 'productos'
+    });
+
+    expect(res.statusCode).toBe(401);
+  });
+
+  test('TC043 - Rechazar formato JSON invalido', async () => {
+    const res = await enviarTCP('JSON_INVALIDO');
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  test('TC044 - Usuario normal no puede insertar mediante TCP', async () => {
+    const res = await enviarTCP({
+      token: usuarioToken,
+      insert: {
+        nombre: `${prefijo}-TCPNoPermitido`,
+        precio: 100,
+        stock: 1
+      }
+    });
+
+    if (res.statusCode === 201 && res.data?.id) {
+      productosCreados.add(res.data.id);
+    }
+
+    expect(res.statusCode).toBe(403);
+  });
+
+  test('TC045 - Administrador puede insertar mediante TCP', async () => {
+    const res = await enviarTCP({
+      token: adminToken,
+      insert: {
+        nombre: `${prefijo}-TCPProducto`,
+        precio: 500,
+        stock: 5
+      }
+    });
+
+    if (res.statusCode === 201 && res.data?.id) {
+      productosCreados.add(res.data.id);
+    }
+
+    expect(res.statusCode).toBe(201);
+    expect(res.data.precio).toBe(500);
+    expect(res.data.stock).toBe(5);
+  });
 });
