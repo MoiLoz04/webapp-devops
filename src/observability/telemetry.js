@@ -1,3 +1,4 @@
+
 require('dotenv').config();
 
 const enabled = process.env.OTEL_ENABLED === 'true';
@@ -12,6 +13,10 @@ if (enabled) {
   const {
     ExpressInstrumentation
   } = require('@opentelemetry/instrumentation-express');
+
+  const {
+    UndiciInstrumentation
+  } = require('@opentelemetry/instrumentation-undici');
 
   const {
     OTLPTraceExporter
@@ -84,7 +89,9 @@ if (enabled) {
           request.url === '/api/health'
       }),
 
-      new ExpressInstrumentation()
+      new ExpressInstrumentation(),
+
+      new UndiciInstrumentation()
     ]
   });
 
